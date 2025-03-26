@@ -1,0 +1,165 @@
+# Clone the notejam repository
+git clone https://github.com/komarserjio/notejam.git
+
+# Navigate to the Express implementation
+cd notejam/express/notejam
+
+
+
+
+
+notejam
+└── express
+    └── notejam
+        ├── bin/
+        ├── public/
+        │   └── stylesheets/
+        ├── routes/
+        ├── test/
+        ├── views/
+        ├── app.js
+        ├── helpers.js
+        ├── package.json
+        ├── settings.js
+        └── ...
+
+
+
+
+# .env
+
+# MongoDB connection details (service name is 'db' in docker-compose)
+DB_HOST=db
+DB_PORT=27017
+DB_NAME=notejam
+
+# Application port
+PORT=3000
+
+
+
+
+
+// settings.js
+
+require('dotenv').config(); // To load variables from .env
+
+module.exports = {
+  port: process.env.PORT || 3000,
+  db: {
+    // If you're using mongoose, for example:
+    url: `mongodb://${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '27017'}/${process.env.DB_NAME || 'notejam'}`
+  },
+  // ... other settings
+};
+
+
+
+
+# Dockerfile
+
+# 1. Use an official Node.js runtime
+FROM node:14-alpine
+
+# 2. Create and set the working directory inside the container
+WORKDIR /app
+
+# 3. Copy package.json and package-lock.json
+COPY package*.json ./
+
+# 4. Install dependencies
+RUN npm install
+
+# 5. Copy the rest of the application code
+COPY . .
+
+# 6. Expose the port
+EXPOSE 3000
+
+# 7. Define the command to start the application
+CMD ["npm", "start"]
+
+
+
+
+
+
+
+version: '3'
+services:
+  notejam:
+    build: .
+    container_name: notejam_express
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+    # If you need to run migrations or anything else, you can add:
+    # command: "npm run migrate && npm start"
+
+  db:
+    image: mongo:latest
+    container_name: notejam_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
+
+
+
+
+
+{
+  "scripts": {
+    "start": "node app.js"
+  },
+  // ...
+}
+
+
+
+
+docker-compose up --build
+
+
+
+
+
+notejam/
+└── express/
+    └── notejam/
+        ├── bin/
+        ├── public/
+        │   └── stylesheets/
+        ├── routes/
+        ├── test/
+        ├── views/
+        ├── app.js
+        ├── helpers.js
+        ├── package.json
+        ├── settings.js
+        ├── .env               # Environment variables
+        ├── Dockerfile         # Docker instructions
+        ├── docker-compose.yml # Compose for the app & MongoDB
+        └── package-lock.json  # (if present)
+
+
+
+
+
+
+12. Optional: Connecting to an External MongoDB
+If you want to connect to an external MongoDB (not Dockerized), do the following:
+
+Remove the db service from docker-compose.yml and the depends_on: - db line.
+
+In your .env, set DB_HOST to the actual hostname or IP of your external DB.
+
+Adjust DB_PORT and DB_NAME accordingly.
+
+Run docker-compose up --build to start only the Notejam container.
