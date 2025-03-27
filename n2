@@ -1,0 +1,242 @@
+git clone https://github.com/komarserjio/notejam.git
+
+
+cd notejam/express/notejam
+
+
+notejam/
+  └── express/
+       └── notejam/
+           ├── bin/
+           ├── public/
+           ├── routes/
+           ├── views/
+           ├── ...
+           ├── app.js
+           ├── db.js
+           ├── helpers.js
+           ├── model.js
+           ├── package.json
+           ├── settings.js
+           └── ...
+
+
+npm install
+
+
+# 1. Use an official Node.js LTS image
+FROM node:14
+
+# 2. Create and set the working directory inside the container
+WORKDIR /app
+
+# 3. Copy package.json and package-lock.json
+COPY package*.json ./
+
+# 4. Install dependencies
+RUN npm install
+
+# 5. Copy the rest of the application files
+COPY . .
+
+# 6. Expose the port your app runs on (per bin/www, it's usually 3000)
+EXPOSE 3000
+
+# 7. Define the command to run your app
+CMD ["npm", "start"]
+
+
+
+version: '3.8'
+
+services:
+  notejam:
+    build: .
+    container_name: notejam_app
+    ports:
+      - "3000:3000"
+    # Optional: mount a volume for the SQLite database file
+    volumes:
+      - notejam_data:/app/notejam.db
+    restart: always
+
+volumes:
+  notejam_data:
+
+
+
+
+docker-compose up --build
+
+
+
+
+docker-compose up --build -d
+
+
+# 1. Build the image
+docker build -t notejam:latest .
+
+# 2. Run the container, mapping port 3000
+docker run -d --name notejam_app -p 3000:3000 notejam:latest
+
+
+----------------------------------------------------------------------------------------------------------------------------------
+
+
+
+1. Prepare a Host Directory for the SQLite Database
+First, choose (or create) a directory on your Ubuntu system where you’d like to store the SQLite database. For example, create a directory named data inside the Notejam folder:
+
+bash
+Copy
+Edit
+
+
+cd ~/path/to/notejam/express/notejam
+mkdir -p data
+
+
+This directory will store your notejam.db file so that you can access it from Ubuntu.
+
+2. Update the Docker Compose File for a Bind Mount
+Open (or create) the docker-compose.yml file in your notejam/express/notejam directory and update the volumes section to mount the SQLite database file to your host’s data folder. For example:
+
+yaml
+Copy
+Edit
+
+
+-----
+version: '3.8'
+
+services:
+  notejam:
+    build: .
+    container_name: notejam_app
+    ports:
+      - "3000:3000"
+    # Bind mount the SQLite database file from host to container
+    volumes:
+      - ./data/notejam.db:/app/notejam.db
+    restart: always
+
+volumes:
+  # (If not using bind mount for the db, you could define a named volume here)
+
+---
+
+In this setup:
+
+The host file ./data/notejam.db will be used inside the container at /app/notejam.db.
+
+3. Build and Run the Application
+Make sure you are in the notejam/express/notejam directory and then run:
+
+bash
+Copy
+Edit
+--
+
+docker-compose up --build
+---
+This command will:
+
+Build the Docker image using the provided Dockerfile
+
+Start the container, mapping port 3000 from the container to your host
+
+Use your bind mount so the SQLite file is saved at ./data/notejam.db
+
+You should see log messages that the Express app is running (and the database being initialized if it’s the first run).
+
+4. Verify the Application is Running
+Open a web browser and navigate to:
+
+arduino
+Copy
+Edit
+
+--
+
+http://localhost:3000
+
+--
+You should see the Notejam interface. You can interact with the application as needed.
+
+5. Connect to the SQLite Database from Ubuntu
+Now that the SQLite database file is stored on your host in the data directory, you can use your locally installed SQLite client to inspect or run queries.
+
+Open Terminal
+
+Connect to the Database using the sqlite3 command:
+
+bash
+Copy
+Edit
+
+--
+sqlite3 data/notejam.db
+--
+Once connected, you’ll see a prompt like:
+
+rust
+Copy
+Edit
+SQLite version X.Y.Z <...>
+Enter ".help" for usage hints.
+sqlite>
+List Tables
+At the SQLite prompt, run:
+
+sql
+Copy
+Edit
+.tables
+This will display the list of tables (for example, users, pads, notes).
+
+Run a Sample Query
+For instance, to see the users in the database:
+
+sql
+Copy
+Edit
+SELECT * FROM users;
+Exit SQLite
+Type .exit or press CTRL + D:
+
+sql
+Copy
+Edit
+.exit
+6. Summary of Ubuntu Terminal Commands
+Here’s a quick recap of the key commands to run in your Ubuntu terminal:
+
+Change Directory & Create Data Folder
+
+bash
+Copy
+Edit
+cd ~/path/to/notejam/express/notejam
+mkdir -p data
+Run Docker Compose
+
+bash
+Copy
+Edit
+docker-compose up --build
+Connect with SQLite Client (in a new terminal window)
+
+bash
+Copy
+Edit
+sqlite3 data/notejam.db
+Within SQLite CLI, check tables and query data
+
+sql
+Copy
+Edit
+.tables
+SELECT * FROM users;
+.exit
+By following these steps, your Notejam Express application will run in a Docker container on Ubuntu using SQLite for its database, and you’ll be able to connect to and inspect the SQLite database file directly from your Ubuntu system.
