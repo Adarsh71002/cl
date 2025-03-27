@@ -1,0 +1,264 @@
+1. Install Prerequisites
+Docker
+
+Follow the official Docker installation guide for your operating system:
+Install Docker
+
+Docker Compose
+
+Docker Desktop on Windows/Mac includes Docker Compose by default.
+
+On Linux, install Docker Compose separately:
+Install Docker Compose
+
+Git
+
+Install Git
+
+2. Clone the Notejam Repository
+Open your terminal or command prompt, then run:
+
+bash
+Copy
+Edit
+git clone https://github.com/komarserjio/notejam.git
+Change into the Express version of Notejam:
+
+bash
+Copy
+Edit
+cd notejam/express/notejam
+Your folder structure should look something like this (based on the original repository):
+
+java
+Copy
+Edit
+notejam/
+  └── express/
+       └── notejam/
+           ├── bin/
+           ├── public/
+           ├── routes/
+           ├── views/
+           ├── ...
+           ├── app.js
+           ├── db.js
+           ├── helpers.js
+           ├── model.js
+           ├── package.json
+           ├── settings.js
+           └── ...
+3. Install Node Dependencies
+Inside the notejam/express/notejam directory, install the required dependencies:
+
+bash
+Copy
+Edit
+npm install
+This will install packages such as express, sqlite3, and others specified in package.json.
+
+4. Review the Default SQLite Setup
+From your shared code snippets:
+
+settings.js
+Defines two environments (development and test) and points to SQLite databases (notejam.db and notejam_test.db).
+
+db.js
+Uses sqlite3 and automatically creates tables for users, pads, and notes.
+
+model.js
+Uses orm with a similar SQLite approach.
+
+No code changes are required if you are happy with the default database file names (notejam.db for development). When the application starts, if the notejam.db file doesn’t exist, it will be created automatically and tables will be initialized (or you can run db.js directly).
+
+5. Create a Dockerfile
+In the notejam/express/notejam folder, create a file named Dockerfile:
+
+dockerfile
+Copy
+Edit
+# 1. Use an official Node.js LTS image
+FROM node:14
+
+# 2. Create and set the working directory inside the container
+WORKDIR /app
+
+# 3. Copy package.json and package-lock.json
+COPY package*.json ./
+
+# 4. Install dependencies
+RUN npm install
+
+# 5. Copy the rest of the application files
+COPY . .
+
+# 6. Expose the port your app runs on (per bin/www, it's usually 3000)
+EXPOSE 3000
+
+# 7. Define the command to run your app
+CMD ["npm", "start"]
+Notes:
+
+We use node:14 as an example; feel free to use node:16 or a newer LTS version.
+
+The npm start script calls node ./bin/www by default, which starts the Express server on port 3000.
+
+The Dockerfile copies the entire app into the container, including db.js, settings.js, etc.
+
+6. (Optional) Create a Docker Compose File
+Although you only have one container (the application itself), you can still use Docker Compose to simplify commands or to map volumes for your SQLite database file. If you’d like to persist your notejam.db outside of the container (so it won’t be lost if you remove the container), you can map a volume.
+
+Create a file named docker-compose.yml in the same directory (notejam/express/notejam):
+
+yaml
+Copy
+Edit
+version: '3.8'
+
+services:
+  notejam:
+    build: .
+    container_name: notejam_app
+    ports:
+      - "3000:3000"
+    # Optional: mount a volume for the SQLite database file
+    volumes:
+      - notejam_data:/app/notejam.db
+    restart: always
+
+volumes:
+  notejam_data:
+Explanation:
+
+build: . instructs Docker Compose to build an image using the local Dockerfile.
+
+ports: exposes container port 3000 to host port 3000.
+
+volumes: we define a named volume notejam_data and mount it to /app/notejam.db in the container. This ensures the database file persists across container recreations.
+
+If you do not need to persist the database outside the container, you can omit the volumes section and keep it as a single container environment.
+
+7. Build and Run the Container
+Option A: Using Docker Compose
+From notejam/express/notejam, run:
+
+bash
+Copy
+Edit
+docker-compose up --build
+This will:
+
+Build the Docker image as specified in your Dockerfile.
+
+Start the container named notejam_app.
+
+Map port 3000 on your machine to port 3000 inside the container.
+
+Access the application at http://localhost:3000.
+
+Press CTRL + C to stop the containers. If you want to run them in detached mode (in the background), use:
+
+bash
+Copy
+Edit
+docker-compose up --build -d
+Option B: Using Only Docker Commands
+If you prefer not to use Docker Compose, you can build and run with plain Docker:
+
+bash
+Copy
+Edit
+# 1. Build the image
+docker build -t notejam:latest .
+
+# 2. Run the container, mapping port 3000
+docker run -d --name notejam_app -p 3000:3000 notejam:latest
+This also starts the application on http://localhost:3000.
+
+8. Verify SQLite is Working
+Check Logs
+In your terminal, Docker logs should show something like:
+
+nginx
+Copy
+Edit
+DB successfully initialized
+or at least that the server started listening on port 3000. The code in db.js handles table creation on startup.
+
+Create an Account and Notes
+
+Go to http://localhost:3000.
+
+Sign up with an email and password.
+
+Create a pad or a note.
+
+The data should be stored in notejam.db inside the container (or in your mounted volume if using Docker Compose with volumes).
+
+Persisted Data
+
+If you used a volume (docker-compose.yml example), the notejam.db file will persist on the named volume notejam_data.
+
+If you didn’t mount a volume, the database file lives only inside the container. Removing the container will remove your data unless you copy the file out.
+
+9. (Optional) Testing and Additional Commands
+Initialize or Re-initialize Database
+
+If needed, you can manually run db.js inside the container to re-initialize the database:
+
+bash
+Copy
+Edit
+docker-compose exec notejam node db.js
+or (without Compose):
+
+bash
+Copy
+Edit
+docker exec -it notejam_app node db.js
+This will recreate the tables if they don’t exist.
+
+Run Tests
+
+The repository includes tests using Mocha. If you want to run them inside the container:
+
+bash
+Copy
+Edit
+docker-compose exec notejam npm test
+or with plain Docker:
+
+bash
+Copy
+Edit
+docker exec -it notejam_app npm test
+10. Clean Up
+Stop the Containers
+
+bash
+Copy
+Edit
+docker-compose down
+or if you’re using plain Docker:
+
+bash
+Copy
+Edit
+docker stop notejam_app
+docker rm notejam_app
+Remove the Named Volume (if you created one via Compose)
+
+bash
+Copy
+Edit
+docker-compose down -v
+This removes containers and the volume (which contains the notejam.db file).
+
+Done!
+You now have a fully Dockerized Notejam Express application using SQLite. The key points were:
+
+Creating a Dockerfile that installs dependencies and runs npm start.
+
+Optionally using a docker-compose.yml file to simplify commands and persist the SQLite database via a named volume.
+
+Ensuring the app is accessible on http://localhost:3000.
