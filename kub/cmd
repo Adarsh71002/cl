@@ -1,0 +1,48 @@
+# Update and install dependencies (if needed)
+brew install kubectl docker docker-compose minikube
+
+# Start Minikube (if not running)
+minikube start
+
+# Build and push Docker images
+docker build -t notejam-app:latest .
+docker build -t notejam-postgres:latest -f Dockerfile.postgres .
+
+# Load images into Minikube
+eval $(minikube docker-env)
+docker tag notejam-app:latest notejam-app:latest
+docker tag notejam-postgres:latest notejam-postgres:latest
+
+# Apply Kubernetes manifests
+kubectl apply -f k8s/postgres-statefulset.yaml
+kubectl apply -f k8s/postgres-service.yaml
+kubectl apply -f k8s/app-deployment.yaml
+kubectl apply -f k8s/app-service.yaml
+kubectl apply -f k8s/ingress.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secret.yaml
+
+# Check pod status
+kubectl get pods
+
+# Check service details
+kubectl get svc
+
+# Check logs of application pod
+kubectl logs $(kubectl get pods --selector=app=notejam-app -o jsonpath="{.items[0].metadata.name}")
+
+# Open shell in running container
+kubectl exec -it $(kubectl get pods --selector=app=notejam-app -o jsonpath="{.items[0].metadata.name}") -- sh
+
+# Test database connection
+PGPASSWORD=notejam psql -h notejam-postgres -U notejam -d notejam
+
+# Check ingress
+kubectl get ingress
+
+# Port forward to access locally (if Ingress is not working)
+kubectl port-forward svc/notejam-app 3000:3000
+
+# Access application
+open http://localhost:3000
+
