@@ -1,0 +1,160 @@
+# 1. ConfigMap: Non-sensitive configuration for the application.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notejam-config
+data:
+  NODE_ENV: "development"
+  db-name: "notejam"
+  db-host: "notejam-postgres"   # PostgreSQL service DNS name.
+  db-port: "5432"
+---
+# 2. Secret: Stores sensitive information (database credentials).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: notejam-secret
+type: Opaque
+data:
+  # Base64 encoded "notejam" => bm90ZWphbQ==
+  db-user: bm90ZWphbQ==
+  db-password: bm90ZWphbQ==
+---
+# 3. Secret: Full DATABASE_URL for the application.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: notejam-db-connection
+type: Opaque
+data:
+  # Base64 encoded for "postgres://notejam:notejam@notejam-postgres:5432/notejam"
+  DATABASE_URL: cG9zdGdyZXM6Ly9ub3RlamFtOm5vdGVqYW1Abm90ZWphbS1wb3N0Z3Jlc3M6NTQzL25vdGVqYW0=
+---
+# 4. StatefulSet: PostgreSQL with persistent storage.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: notejam-postgres
+spec:
+  serviceName: "notejam-postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notejam-postgres
+  template:
+    metadata:
+      labels:
+        app: notejam-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: notejam-config
+              key: db-name
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: notejam-secret
+              key: db-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: notejam-secret
+              key: db-password
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+# 5. Service for PostgreSQL: Exposes PostgreSQL inside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: notejam-postgres
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: notejam-postgres
+---
+# 6. Deployment: Notejam application for scalability.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notejam-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notejam-app
+  template:
+    metadata:
+      labels:
+        app: notejam-app
+    spec:
+      containers:
+      - name: notejam-app
+        image: notejam-app:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: notejam-config
+              key: NODE_ENV
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: notejam-db-connection
+              key: DATABASE_URL
+---
+# 7. Service for Notejam Application: Exposes the app internally.
+apiVersion: v1
+kind: Service
+metadata:
+  name: notejam-app
+spec:
+  selector:
+    app: notejam-app
+  ports:
+  - protocol: TCP
+    port: 3000
+    targetPort: 3000
+  type: ClusterIP
+---
+# 8. Ingress: Exposes the Notejam application externally.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notejam-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: notejam.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: notejam-app
+            port:
+              number: 3000
